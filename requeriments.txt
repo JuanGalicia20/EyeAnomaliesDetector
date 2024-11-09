@@ -1,0 +1,7 @@
+tensorflow
+PIL
+cv2
+plotly
+reportlab
+datetime
+base64
