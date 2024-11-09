@@ -1,5 +1,5 @@
 tensorflow
-PIL
+Pillow
 cv2
 plotly
 reportlab
