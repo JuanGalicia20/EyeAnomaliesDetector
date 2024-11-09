@@ -1,6 +1,7 @@
 streamlit
-Pillow  # para importar PIL
-opencv-python-headless  # en lugar de cv2 para compatibilidad con servidores sin GUI
+pillow  # para importar PIL
+opencv-python-headless  
 numpy
 plotly
 reportlab
+tensorflow==2.11.0
