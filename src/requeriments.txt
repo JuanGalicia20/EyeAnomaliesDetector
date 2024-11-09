@@ -1,0 +1,7 @@
+streamlit
+tensorflow
+Pillow  # para importar PIL
+opencv-python-headless  # en lugar de cv2 para compatibilidad con servidores sin GUI
+numpy
+plotly
+reportlab

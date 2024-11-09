@@ -1,7 +1,0 @@
-tensorflow
-Pillow
-cv2
-plotly
-reportlab
-datetime
-base64
