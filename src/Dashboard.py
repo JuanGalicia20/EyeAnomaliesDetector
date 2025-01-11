@@ -14,13 +14,23 @@ from reportlab.lib import colors
 from io import BytesIO
 from datetime import datetime
 import base64
+from PIL import Image
 from reportlab.lib.utils import ImageReader
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Predictor de Retinopatía Diabética",
-    layout="wide"
+    page_title="Diagóstico Preliminar RD",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+def load_sample_image(image_path):
+    if os.path.exists(image_path):
+        return Image.open(image_path)
+    else:
+        st.error(f"No se pudo encontrar la imagen de muestra: {image_path}")
+        return None
+
 # Función de preprocesamiento actualizada
 def preprocess_macular_retinopathy(img, scale=600):
     def scaleRadius(img, scale):
@@ -88,8 +98,16 @@ def predict_image(model, img_array):
         # Predicción
         predictions = model.predict(img_array_expanded)
         predicted_class = np.argmax(predictions, axis=1)
-        binary_predictions = np.where(predicted_class == 0, 0, 1)[0]
-        y_pred_prob_binary = np.sum(predictions[:, 1:], axis=1)[0]
+
+        # Calcular la probabilidad binaria comparando clase 0 vs suma de las demás
+        prob_class_0 = predictions[0, 0]  # Probabilidad de la clase 0 (No RD)
+        prob_other_classes = np.sum(predictions[0, 1:])  # Suma de probabilidades de las demás clases
+        
+        # Determinar predicción binaria (0 si clase 0 es mayor, 1 si la suma de las otras es mayor)
+        binary_predictions = 1 if prob_other_classes > prob_class_0 else 0
+        
+        # La probabilidad binaria será la suma de las probabilidades de las clases positivas
+        y_pred_prob_binary = prob_other_classes
 
         return binary_predictions, y_pred_prob_binary, predicted_class, predictions, preprocessed_img
 
@@ -98,35 +116,62 @@ def predict_image(model, img_array):
         return None, None, None, None, None
 
 def create_binary_probability_chart(prob):
+    # Convertir probabilidad a porcentaje
+    prob_percentage = prob * 100
+    no_rd_percentage = (1 - prob) * 100
+    
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=['No Retinopatía', 'Retinopatía'],
-        y=[1-prob, prob],
-        marker_color=['#2ecc71', '#e74c3c']
+        y=[no_rd_percentage, prob_percentage],
+        marker_color=['#2ecc71', '#e74c3c'],
+        text=[f'{no_rd_percentage:.1f}%', f'{prob_percentage:.1f}%'],
+        textposition='auto',
     ))
     fig.update_layout(
-        title='Probabilidad de Retinopatía Diabética',
-        yaxis_title='Probabilidad',
+        title={
+            'text': 'Probabilidad de Retinopatía Diabética',
+            'y': 0.95,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'
+        },
+        yaxis_title='Probabilidad (%)',
+        yaxis=dict(range=[0, 100]),  # Establecer rango de 0 a 100
         xaxis_title='Clase',
         showlegend=False,
-        height=400
+        height=400,
+        template='plotly_white'
     )
     return fig
 
 def create_multiclass_probability_chart(probs):
     labels = ['No RD', 'Leve', 'Moderada', 'Severa', 'Proliferativa']
+    # Convertir probabilidades a porcentajes
+    percentages = [prob * 100 for prob in probs[0]]
+    
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=labels,
-        y=probs[0],
-        marker_color=['#2ecc71', '#f1c40f', '#e67e22', '#e74c3c', '#c0392b']
+        y=percentages,
+        marker_color=['#2ecc71', '#f1c40f', '#e67e22', '#e74c3c', '#c0392b'],
+        text=[f'{p:.1f}%' for p in percentages],
+        textposition='auto',
     ))
     fig.update_layout(
-        title='Probabilidad por Nivel de Severidad',
-        yaxis_title='Probabilidad',
+        title={
+            'text': 'Probabilidad por Nivel de Severidad',
+            'y': 0.95,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top'
+        },
+        yaxis_title='Probabilidad (%)',
+        yaxis=dict(range=[0, 100]),  # Establecer rango de 0 a 100
         xaxis_title='Nivel de Severidad',
         showlegend=False,
-        height=400
+        height=400,
+        template='plotly_white'
     )
     return fig
 
@@ -207,113 +252,270 @@ def create_pdf(image_pil, preprocessed_img, binary_pred, multi_pred, predicted_c
 def load_keras_model():
     return load_model("./static/model/vgg19_2_11_v2.keras")
 
-# Interfaz principal
-#st.title("🏥 Predictor de Retinopatía Diabética")
-#VERSION_MODELO = "1.0.0"
-#st.write(f"Versión del modelo: {VERSION_MODELO}")
 
 
-
-# Estilo CSS personalizado
+# Estilo CSS mejorado
 st.markdown("""
     <style>
+        /* Estilos generales */
+        .main {
+            padding: 2rem;
+        }
+        
+        /* Header container */
         .header-container {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+        
+        /* Botones */
+        .stButton > button {
+            width: 100% !important;
+            height: 3.5rem !important;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            border: 2px solid #e9ecef;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            margin: 0.5rem 0;
+        }
+        
+        .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #4CAF50;
+        }
+        
+        /* Versión tag */
+        .version-tag {
+            color: #6c757d;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: center;
+            margin-top: 0.5rem;
+        }
+        
+        /* Contenedor de desarrollador */
+        .developer-container {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            margin: 1rem 0;
+            border: 1px solid #e9ecef;
+        }
+        
+        /* Divisores */
+        .custom-divider {
+            margin: 2rem 0;
+            border: none;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #dee2e6, transparent);
+        }
+        
+        /* Cards para resultados */
+        .result-card {
+            background: white;
             padding: 1.5rem;
             border-radius: 0.5rem;
-            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e9ecef;
+        }
+        
+        /* Footer */
+        .footer-container {
             background-color: #f8f9fa;
-        }
-        .stButton > button {
-            width: 300px !important;  /* Botones más anchos */
-            height: 50px !important;
-            background-color: #ffffff;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            margin: 0 auto;
-            display: block;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-top: 2rem;
             text-align: center;
         }
-        .stButton > button:hover {
-            border-color: #4CAF50;
-            color: #4CAF50;
-        }
-        .version-tag {
-            color: #666;
-            font-size: 0.8rem;
-        }
-        .custom-dev-text {
-            text-align: center;
-            padding: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        div[data-testid="column"] {
+        
+        /* Contenedor de logos */
+        .logo-container {
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-direction: column;
+            gap: 2rem;
+            margin-top: 1rem;
+        }
+        
+        /* File uploader */
+        .uploadedFile {
+            border: 2px dashed #4CAF50;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        
+        /* Alerts */
+        .stAlert {
+            border-radius: 0.5rem;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
     </style>
 """, unsafe_allow_html=True)
 
-# Título principal
+# Header con diseño mejorado
 st.markdown("""
     <div class="header-container">
-        <h1 style='text-align: center; color: #2c3e50;'>🏥 Predictor de Retinopatía Diabética</h1>
-        <p style='text-align: center;' class="version-tag">Versión del modelo: 1.0.0</p>
+        <h1 style='text-align: center; color: #2c3e50; margin-bottom: 0.5rem;'>
+            🏥 OptiMIRA: Monitoreo Inteligente para la Detección Temprana de Retinopatía Diabética
+        </h1>
+        <p class="version-tag">Versión del modelo: 1.0.0</p>
     </div>
 """, unsafe_allow_html=True)
-col1, col2, col3 = st.columns([1, 1, 1])
 
-with col1:
-    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
-    if st.button("ℹ️ Información del Modelo"):
-        st.info("""
-        **Modelo de Deep Learning para Detección de Retinopatía**
-        
-        • Entrenado con miles de imágenes
-        • Validado por oftalmólogos expertos
-        • Actualización continua del modelo
-        • Precisión superior al 90%
-        """)
+with st.container():
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        info_button = st.button("ℹ️ Información del Modelo", key="info_button")
 
-with col2:
-    # Texto "Desarrollado por" centrado
-    st.markdown('<p class="custom-dev-text">Desarrollado por:<br><strong>Juan Andrés Galicia Reyes</strong></p>', unsafe_allow_html=True)
-    if st.button("📄 Licencia"):
-        st.info("""
-        **Licencia MIT**
-        
-        • Uso libre para investigación
-        • Aplicaciones clínicas permitidas
-        • Requiere reconocimiento
-        • Sin garantía implícita
-        """)
+    with col2:
+        # Luego el botón
+        license_button = st.button("📄 Licencia", key="license_button")
+        st.markdown("""
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <p style="margin: 0;">Desarrollado por:</p>
+                <strong>Juan Andrés Galicia Reyes</strong>
+            </div>
+        """, unsafe_allow_html=True)
 
-with col3:
-    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
-    if st.button("🔍 Actualizaciones"):
-        st.info("""
-        **Próximas Mejoras**
-        
-        • Mayor precisión en detección
-        • Nuevos niveles de severidad
-        • Mejoras en la interfaz
-        • Análisis temporal de progresión
-        """)
+    with col3:
+        act_button = st.button("🔍 Actualizaciones", key="updates_button")
 
-# Línea divisoria sutil
-st.markdown("<hr style='margin: 2rem 0; border: none; border-top: 1px solid #eee;'>", unsafe_allow_html=True)
+if info_button:
+    st.info("""
+    **Modelo de Deep Learning para Detección de Retinopatía**
+    
+    - Entrenado con miles de imágenes
+    - Validado por oftalmólogos expertos
+    - Actualización continua del modelo
+    - Precisión superior al 90%
+    """)
+
+if act_button:
+    st.info("""
+    **Próximas Mejoras**
+            
+    - Mayor precisión en detección
+    - Expansión a nuevas enfermedades
+    - Mejoras en la interfaz
+    - Mejoras en el sistema de generación de PDF a correos automáticos
+    """)
+
+if license_button:
+    st.info("""
+    **Licencia de Software (SW License)**
+
+    Copyright (c) 2025 Juan Andrés Galicia Reyes
+
+    Por la presente se otorga permiso, de forma gratuita, a cualquier persona que obtenga una copia de este software y los archivos de documentación asociados (el "Software"), para utilizar el Software sin restricciones, incluyendo, sin limitación, los derechos para:
+
+    • Usar el software en entornos clínicos y de investigación
+    • Estudiar cómo funciona el software y adaptarlo a sus necesidades específicas
+    • Redistribuir el software con fines no comerciales
+    • Mejorar el software y compartir las mejoras con la comunidad
+
+    **Condiciones:**
+
+    1. **Atribución:** Debe proporcionar atribución adecuada al autor original, incluyendo un enlace a la licencia y indicando si se realizaron cambios.
+
+    2. **No Comercial:** No puede utilizar este software con fines comerciales sin el permiso expreso del autor.
+
+    3. **Compartir Igual:** Si remezcla, transforma o crea a partir del material, debe distribuir sus contribuciones bajo la misma licencia que el original.
+
+    4. **Sin Garantía:** El software se proporciona "tal cual", sin garantía de ningún tipo, expresa o implícita. El autor no será responsable de ningún daño o reclamación en relación con el software.
+
+    **Limitación de Responsabilidad:**
+
+    • Este software está diseñado como una herramienta de apoyo y no debe utilizarse como único medio de diagnóstico.
+    • Las predicciones y análisis generados por el software deben ser validados por profesionales médicos cualificados.
+    • El autor no se hace responsable de diagnósticos erróneos o decisiones médicas basadas únicamente en los resultados del software.
+
+    **Uso en Investigación:**
+
+    Si utiliza este software en investigación académica, por favor cite:
+
+    Galicia-Reyes, J.A. (2025). Sistema de Detección de Retinopatía Diabética mediante Deep Learning.
+    Universidad del Valle de Guatemala.
+
+    Para cualquier consulta sobre licencias comerciales o colaboraciones, contactar a: juanandresgaliciareyes@gmail.com
+    """)
+# Divisor personalizado
+st.markdown('<div class="custom-divider"></div>', unsafe_allow_html=True)
 
 
 # Uploader de imagen
-uploaded_file = st.file_uploader("Seleccione una imagen de fondo de ojo", type=["jpg", "jpeg", "png"])
+st.markdown("""
+    <div style='background-color: #f8f9fa; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 1rem;'>
+        <h3 style='color: #2c3e50; margin-bottom: 1rem;'>📸 Cargar Imagen</h3>
+    </div>
+""", unsafe_allow_html=True)
 
-if uploaded_file is not None:
+tab1, tab2 = st.tabs(["📤 Subir Imagen", "🔍 Usar Imagen de Muestra"])
+
+with tab1:
+    uploaded_file = st.file_uploader("Seleccione una imagen de fondo de ojo", type=["jpg", "jpeg", "png"])
+    
+with tab2:
+    st.markdown("### Seleccione una imagen de prueba")
+    # Contenedor para los botones de imágenes de prueba
+    sample_images_col1, sample_images_col2, sample_images_col3, sample_images_col4, sample_images_col5 = st.columns(5)
+    
+    # Rutas a las imágenes de prueba (ajusta según tu estructura de archivos)
+    sample_images = {
+        "Muestra 1 (Sano)": "./static/img/samples/sample-sano.png",
+        "Muestra 2 (Retinopatía Leve)": "./static/img/samples/sample-dr-leve.jpeg",
+        "Muestra 3 (Retinopatía Moderada)": "./static/img/samples/sample-dr-moderada.jpg",
+        "Muestra 4 (Retinopatía Grave)": "./static/img/samples/sample-dr-grave.png",
+        "Muestra 5 (Retinopatía Proliferativa)": "./static/img/samples/sample-dr-prolif.png"
+    }
+    
+    # Variable para almacenar la imagen seleccionada
+    selected_sample = None
+    
+    # Crear los botones en las columnas
+    with sample_images_col1:
+        if st.button("Muestra 1 (Sano)", use_container_width=True):
+            selected_sample = "Muestra 1 (Sano)"
+            
+    with sample_images_col2:
+        if st.button("Muestra 2 (Retinopatía Leve)", use_container_width=True):
+            selected_sample = "Muestra 2 (Retinopatía Leve)"
+            
+    with sample_images_col3:
+        if st.button("Muestra 3 (Retinopatía Moderada)", use_container_width=True):
+            selected_sample = "Muestra 3 (Retinopatía Moderada)"
+    
+    with sample_images_col4:
+        if st.button("Muestra 4 (Retinopatía Grave)", use_container_width=True):
+            selected_sample = "Muestra 4 (Retinopatía Grave)"
+            
+    with sample_images_col5:
+        if st.button("Muestra 5 (Retinopatía Proliferativa)", use_container_width=True):
+            selected_sample = "Muestra 5 (Retinopatía Proliferativa)"
+    
+    # Mostrar previsualización de la imagen seleccionada
+    if selected_sample:
+        image_path = sample_images[selected_sample]
+        sample_image = load_sample_image(image_path)
+
+# Procesar la imagen (ya sea cargada o de muestra)
+if uploaded_file is not None or (selected_sample and sample_image):
     try:
         modelo = load_keras_model()
         
         # Procesar imagen
-        image_pil = Image.open(uploaded_file)
+        if uploaded_file is not None:
+            image_pil = Image.open(uploaded_file)
+        else:
+            image_pil = sample_image
         image_array = np.array(image_pil)
         
         if modelo:
@@ -366,8 +568,15 @@ if uploaded_file is not None:
                 if predicted_class == 0:
                     st.success(f"✅ El paciente en esta imagen se muestra sano de Retinopatía Diabética.")
                 else:
+                    severidad = {
+                        1: "Leve",
+                        2: "Moderada",
+                        3: "Severa",
+                        4: "Proliferativa"
+                    }
+                    nivel_severidad = severidad.get(predicted_multiclass[0], "No determinada")
                     st.warning(f"""
-                    ⚠️ Se detectaron signos de Retinopatía Diabética.
+                    ⚠️ Se detectaron signos de Retinopatía Diabética {nivel_severidad}.
                     Se recomienda consultar con un especialista para una evaluación detallada.
                     """)
             else:
@@ -381,17 +590,23 @@ if uploaded_file is not None:
 
 # Disclaimer y logos
 st.markdown("---")
-st.caption("""
-⚠️ IMPORTANTE: Este es un sistema de apoyo al diagnóstico. 
-Las predicciones son estimaciones y no reemplazan el diagnóstico profesional. 
-Siempre consulte a un especialista en oftalmología.
-""")
+# Footer mejorado
+st.markdown("""
+    <div class="footer-container">
+        <p style="font-weight: 500; color: #2c3e50;">
+            ⚠️ IMPORTANTE: Este es un sistema de apoyo al diagnóstico.
+        </p>
+        <p style="color: #6c757d;">
+            Las predicciones son estimaciones y no reemplazan el diagnóstico profesional.<br>
+            Siempre consulte a un especialista en oftalmología. Este es un diagnóstico preliminar.
+        </p>
+
+    </div>
+""", unsafe_allow_html=True)
 
 # Logos en el pie de página
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 with col1:
     st.image("./static/img/uvg.png", width=100)
 with col2:
     st.image("./static/img/ceia.png", width=300)
-#with col3:
-    #st.image("./static/img/uno.png", width=150)
