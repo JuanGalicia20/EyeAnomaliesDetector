@@ -21,7 +21,8 @@ from reportlab.lib.utils import ImageReader
 st.set_page_config(
     page_title="Diagóstico Preliminar RD",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
+    page_icon="🩺"
 )
 
 def load_sample_image(image_path):
@@ -391,22 +392,67 @@ with st.container():
 
 if info_button:
     st.info("""
-    **Modelo de Deep Learning para Detección de Retinopatía**
-    
-    - Entrenado con miles de imágenes
-    - Validado por oftalmólogos expertos
-    - Actualización continua del modelo
-    - Precisión superior al 90%
+    **¿Cómo funciona el sistema de detección?**
+
+    **¿Qué hace este sistema?**  
+    Este sistema analiza imágenes de fondo de ojo para detectar señales de retinopatía diabética, una complicación común en personas con diabetes que puede afectar la visión. Al igual que un oftalmólogo examina sus ojos, el sistema busca patrones y cambios específicos en la imagen de su retina.
+
+    **¿Qué puede detectar?**  
+    El sistema evalúa el nivel de retinopatía diabética en 5 etapas:
+    - Sin retinopatía (sano)
+    - Retinopatía inicial (leve)
+    - Retinopatía en desarrollo (moderada)
+    - Retinopatía avanzada (severa)
+    - Retinopatía en estado crítico (proliferativa)
+
+    También puede dar una respuesta simplificada indicando si hay o no señales de la enfermedad.
+    El sistema luego da un veredicto binario en base a dos categorias:
+    - No Retinopatía
+    - Retinopatía
+
+    **¿Qué tan confiable es?**  
+    El sistema ha sido:
+    - Entrenado con +35K imágenes de retina revisadas por especialistas
+    - Probado exhaustivamente para minimizar errores
+    - Diseñado para ser especialmente cuidadoso en no pasar por alto casos que requieran atención médica
+
+    **Importante tener en cuenta:**
+    - Este sistema es una herramienta de apoyo para la detección temprana
+    - Los resultados deben ser siempre confirmados por un profesional de la salud
+    - No reemplaza la consulta con su médico o especialista
+    - Es especialmente útil para identificar casos que necesitan atención médica prioritaria
+
+    **¿Por qué es útil?**  
+    Ayuda a detectar posibles problemas de forma temprana, permitiendo iniciar el tratamiento cuando es más efectivo. Es especialmente valioso en áreas donde el acceso a especialistas es limitado, funcionando como un primer filtro de evaluación.
     """)
 
 if act_button:
     st.info("""
     **Próximas Mejoras**
-            
-    - Mayor precisión en detección
-    - Expansión a nuevas enfermedades
-    - Mejoras en la interfaz
-    - Mejoras en el sistema de generación de PDF a correos automáticos
+
+    **Control de Calidad de Imágenes**
+    - Implementaremos un sistema que verificará automáticamente si su fotografía de retina cumple con los estándares de calidad necesarios
+    - Le indicará si la imagen está: 
+    - Correctamente enfocada
+    - Bien iluminada
+    - Centrada adecuadamente
+    - Con suficiente visibilidad de la retina
+    - Recibirá sugerencias específicas para mejorar la calidad de la foto si es necesario
+
+    **Mejoras en Precisión**
+    - Estamos trabajando en detectar otras condiciones oculares además de la retinopatía diabética
+    - El sistema será capaz de identificar zonas específicas de la retina que muestran señales de la enfermedad
+    - Se añadirán más controles de seguridad para garantizar diagnósticos aún más precisos
+
+    **Nuevas Funcionalidades**
+    - Seguimiento temporal: podrá comparar imágenes de diferentes fechas para ver la evolución
+    - Exportación de informes detallados para compartir con su médico
+
+    **Accesibilidad**
+    - Interfaz adaptada para personas con baja visión
+    - Soporte para múltiples idiomas
+    - Versión móvil optimizada para uso en dispositivos portátiles
+    - Guías interactivas para mejor uso del sistema
     """)
 
 if license_button:
@@ -417,10 +463,10 @@ if license_button:
 
     Por la presente se otorga permiso, de forma gratuita, a cualquier persona que obtenga una copia de este software y los archivos de documentación asociados (el "Software"), para utilizar el Software sin restricciones, incluyendo, sin limitación, los derechos para:
 
-    • Usar el software en entornos clínicos y de investigación
-    • Estudiar cómo funciona el software y adaptarlo a sus necesidades específicas
-    • Redistribuir el software con fines no comerciales
-    • Mejorar el software y compartir las mejoras con la comunidad
+    - Usar el software en entornos clínicos y de investigación
+    - Estudiar cómo funciona el software y adaptarlo a sus necesidades específicas
+    - Redistribuir el software con fines no comerciales
+    - Mejorar el software y compartir las mejoras con la comunidad
 
     **Condiciones:**
 
@@ -442,8 +488,8 @@ if license_button:
 
     Si utiliza este software en investigación académica, por favor cite:
 
-    Galicia-Reyes, J.A. (2025). Sistema de Detección de Retinopatía Diabética mediante Deep Learning.
-    Universidad del Valle de Guatemala.
+    Galicia-Reyes, J.A. (2025). Desarrollo de un Modelo de Clasificación de Imágenes de Fondo de Ojo con Inteligencia Artificial para la Detección de Anomalías Oculares en Guatemala. (Tesis de licenciatura,
+    Universidad del Valle de Guatemala).
 
     Para cualquier consulta sobre licencias comerciales o colaboraciones, contactar a: juanandresgaliciareyes@gmail.com
     """)
@@ -458,56 +504,83 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+if 'selected_sample' not in st.session_state:
+    st.session_state.selected_sample = None
+
+def clear_sample():
+    st.session_state.selected_sample = None
+
 tab1, tab2 = st.tabs(["📤 Subir Imagen", "🔍 Usar Imagen de Muestra"])
 
 with tab1:
-    uploaded_file = st.file_uploader("Seleccione una imagen de fondo de ojo", type=["jpg", "jpeg", "png"])
+    # El file_uploader sin key de session_state
+    uploaded_file = st.file_uploader("Seleccione una imagen de fondo de ojo", type=["jpg", "jpeg", "png"], 
+                                   on_change=clear_sample)  # Esto limpiará la muestra cuando se suba un archivo
     
+sample_images_refs = {
+    "Muestra 1 (Sano)": {
+        "path": "./static/img/samples/sample-sano.png",
+        "reference": "Imagen de fondo de ojo normal. Fuente: Campos, A. (2024). Clínica Oftalmocare, Guatemala."
+    },
+    "Muestra 2 (Retinopatía Leve)": {
+        "path": "./static/img/samples/sample-dr-leve.jpeg",
+        "reference": "Imagen de retinopatía diabética leve. Fuente: College of Ophtalmologists, Academy of Medicine, Malaysia. https://www.drsmodule.org.my"
+    },
+    "Muestra 3 (Retinopatía Moderada)": {
+        "path": "./static/img/samples/sample-dr-moderada.jpg",
+        "reference": "Imagen de retinopatía diabética moderada. Fuente: Aliseda, D., & Berástegui, L. (2008). Servicio de Oftalmología. Hostpital de Navarra, Madrid. Recuperado de https://www.researchgate.net/publication/228451886_Retinopatia_diabetica_Diabetic_retinopathy#fullTextFileContent"
+    },
+    "Muestra 4 (Retinopatía Severa)": {
+        "path": "./static/img/samples/sample-dr-grave.png",
+        "reference": "Imagen de retinopatía diabética severa. Fuente: Chakraborty, S., & Sheth, J. U. (2022). Contralateral effect following intravitreal brolucizumab injection in diabetic macular edema. Case Reports in Ophthalmological Medicine, 2022, Article ID 3755249. https://doi.org/10.1155/2022/3755249"
+    },
+    "Muestra 5 (Retinopatía Proliferativa)": {
+        "path": "./static/img/samples/sample-dr-prolif.jpg",
+        "reference": "Imagen de retinopatía diabética proliferativa. Fuente: University of Iowa, Department of Ophthalmology and Visual Sciences. (n.d.). Proliferative diabetic retinopathy (PDR). In EyeRounds Online Atlas of Ophthalmology. Recuperado de https://webeye.ophth.uiowa.edu/eyeforum/atlas/pages/proliferative-diabetic-retinopathy/index.htm"
+    }
+}
+
 with tab2:
     st.markdown("### Seleccione una imagen de prueba")
-    # Contenedor para los botones de imágenes de prueba
     sample_images_col1, sample_images_col2, sample_images_col3, sample_images_col4, sample_images_col5 = st.columns(5)
     
-    # Rutas a las imágenes de prueba (ajusta según tu estructura de archivos)
-    sample_images = {
-        "Muestra 1 (Sano)": "./static/img/samples/sample-sano.png",
-        "Muestra 2 (Retinopatía Leve)": "./static/img/samples/sample-dr-leve.jpeg",
-        "Muestra 3 (Retinopatía Moderada)": "./static/img/samples/sample-dr-moderada.jpg",
-        "Muestra 4 (Retinopatía Grave)": "./static/img/samples/sample-dr-grave.png",
-        "Muestra 5 (Retinopatía Proliferativa)": "./static/img/samples/sample-dr-prolif.png"
-    }
+    # Función modificada para manejar la selección de muestra
+    def select_sample(sample_name):
+        st.session_state.selected_sample = sample_name
+        st.rerun()
     
-    # Variable para almacenar la imagen seleccionada
-    selected_sample = None
-    
-    # Crear los botones en las columnas
+    # Botones de muestra
     with sample_images_col1:
         if st.button("Muestra 1 (Sano)", use_container_width=True):
-            selected_sample = "Muestra 1 (Sano)"
+            select_sample("Muestra 1 (Sano)")
             
     with sample_images_col2:
         if st.button("Muestra 2 (Retinopatía Leve)", use_container_width=True):
-            selected_sample = "Muestra 2 (Retinopatía Leve)"
+            select_sample("Muestra 2 (Retinopatía Leve)")
             
     with sample_images_col3:
         if st.button("Muestra 3 (Retinopatía Moderada)", use_container_width=True):
-            selected_sample = "Muestra 3 (Retinopatía Moderada)"
+            select_sample("Muestra 3 (Retinopatía Moderada)")
     
     with sample_images_col4:
-        if st.button("Muestra 4 (Retinopatía Grave)", use_container_width=True):
-            selected_sample = "Muestra 4 (Retinopatía Grave)"
+        if st.button("Muestra 4 (Retinopatía Severa)", use_container_width=True):
+            select_sample("Muestra 4 (Retinopatía Severa)")
             
     with sample_images_col5:
         if st.button("Muestra 5 (Retinopatía Proliferativa)", use_container_width=True):
-            selected_sample = "Muestra 5 (Retinopatía Proliferativa)"
+            select_sample("Muestra 5 (Retinopatía Proliferativa)")
     
     # Mostrar previsualización de la imagen seleccionada
-    if selected_sample:
-        image_path = sample_images[selected_sample]
+    if st.session_state.selected_sample:
+        image_path = sample_images_refs[st.session_state.selected_sample]["path"]
         sample_image = load_sample_image(image_path)
+        if sample_image:
+            st.markdown(f"*{sample_images_refs[st.session_state.selected_sample]['reference']}*")
 
 # Procesar la imagen (ya sea cargada o de muestra)
-if uploaded_file is not None or (selected_sample and sample_image):
+if uploaded_file is not None or st.session_state.selected_sample is not None:
+    if st.session_state.selected_sample is not None:
+        uploaded_file = None
     try:
         modelo = load_keras_model()
         
@@ -515,12 +588,15 @@ if uploaded_file is not None or (selected_sample and sample_image):
         if uploaded_file is not None:
             image_pil = Image.open(uploaded_file)
         else:
-            image_pil = sample_image
-        image_array = np.array(image_pil)
-        
-        if modelo:
-            with st.spinner('Procesando imagen...'):
-                predicted_class, predicted_proba, predicted_multiclass, predicted_proba_multiclass, img_pre = predict_image(modelo, image_array)
+            image_path = sample_images_refs[st.session_state.selected_sample]["path"]
+            image_pil = load_sample_image(image_path)
+            
+        if image_pil:
+            image_array = np.array(image_pil)
+            
+            if modelo:
+                with st.spinner('Procesando imagen...'):
+                    predicted_class, predicted_proba, predicted_multiclass, predicted_proba_multiclass, img_pre = predict_image(modelo, image_array)
             
             if predicted_class is not None and img_pre is not None:
                 # Primera fila: Imágenes (más pequeñas)
@@ -551,18 +627,23 @@ if uploaded_file is not None or (selected_sample and sample_image):
                     st.plotly_chart(multiclass_chart, use_container_width=True)
 
                 if st.button("📄 Generar Reporte PDF"):
-                    pdf_buffer = create_pdf(
-                        image_pil,
-                        img_pre,
-                        predicted_proba,
-                        predicted_proba_multiclass,
-                        predicted_class
-                    )
-                    
-                    # Convertir PDF a base64 para descarga
-                    b64_pdf = base64.b64encode(pdf_buffer.getvalue()).decode()
-                    href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="reporte_retinopatia.pdf">📥 Descargar Reporte PDF</a>'
-                    st.markdown(href, unsafe_allow_html=True)
+                    try:
+                        pdf_buffer = create_pdf(
+                            image_pil,
+                            img_pre,
+                            predicted_proba,
+                            predicted_proba_multiclass,
+                            predicted_class
+                        )
+                        
+                        if pdf_buffer:
+                            b64_pdf = base64.b64encode(pdf_buffer.getvalue()).decode()
+                            href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="reporte_retinopatia.pdf">📥 Descargar Reporte PDF</a>'
+                            st.markdown(href, unsafe_allow_html=True)
+                        else:
+                            st.error("Error al generar el PDF.")
+                    except Exception as e:
+                        st.error(f"Error al generar el PDF: {str(e)}")
                 
                 # Resultado y recomendación
                 if predicted_class == 0:
